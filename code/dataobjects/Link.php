@@ -8,7 +8,7 @@
  * @author <shea@silverstripe.com.au>
  **/
 class Link extends DataObject{
-	
+
 	/**
 	 * @var string custom CSS classes for template
 	 */
@@ -31,7 +31,8 @@ class Link extends DataObject{
 	private static $summary_fields = array(
 		'Title',
 		'LinkType',
-		'LinkURL'
+		'LinkURL',
+		'LinkArray',
 	);
 
 	/**
@@ -50,82 +51,97 @@ class Link extends DataObject{
 	public function getCMSFields(){
 		$fields = $this->scaffoldFormFields(array(
 			// Don't allow has_many/many_many relationship editing before the record is first saved
-			'includeRelations' => ($this->ID > 0),
+			//'includeRelations' => ($this->ID > 0),
 			'tabbed' => true,
 			'ajaxSafe' => true
 		));
 
-        $types = $this->config()->get('types');
-        $i18nTypes = array();
-        foreach ($types as $key => $label) {
-            $i18nTypes[$key] = _t('Linkable.TYPE'.strtoupper($key), $label);
-        }
+		$types = $this->config()->get('types');
+		$i18nTypes = array();
+		foreach ($types as $key => $label) {
+			$i18nTypes[$key] = _t('Linkable.TYPE'.strtoupper($key), $label);
+		}
 
-        $fields->removeByName('SiteTreeID');
-        // seem to need to remove both of these for different SS versions...
-        $fields->removeByName('FileID'); 
-        $fields->removeByName('File');
+		$fields->removeByName('SiteTreeID');
+		// seem to need to remove both of these for different SS versions...
+		$fields->removeByName('FileID');
+		$fields->removeByName('File');
 
 		$fields->dataFieldByName('Title')->setTitle(_t('Linkable.TITLE', 'Title'))->setRightTitle(_t('Linkable.OPTIONALTITLE', 'Optional. Will be auto-generated from link if left blank'));
-		$fields->replaceField('Type', DropdownField::create('Type', _t('Linkable.LINKTYPE', 'Link Type'), $i18nTypes)->setEmptyString(' '), 'OpenInNewWindow');
-		
-		$fields->addFieldToTab('Root.Main', DisplayLogicWrapper::create(
-			TreeDropdownField::create('FileID', _t('Linkable.FILE', 'File'), 'File', 'ID', 'Title')
-		)->displayIf("Type")->isEqualTo("File")->end());
-		
-		$fields->addFieldToTab('Root.Main', DisplayLogicWrapper::create(
-			TreeDropdownField::create('SiteTreeID', _t('Linkable.PAGE', 'Page'), 'SiteTree')
-		)->displayIf("Type")->isEqualTo("SiteTree")->end());
+		$fields->replaceField('Type', OptionSetField::create('Type', _t('Linkable.LINKTYPE', 'Link Type'), $i18nTypes)->setEmptyString(' '), 'OpenInNewWindow');
 
-		$fields->addFieldToTab('Root.Main', $newWindow = CheckboxField::create('OpenInNewWindow', _t('Linkable.OPENINNEWWINDOW', 'Open link in a new window')));
+
+		$subsites = DataObject::get('Subsite');
+		$subsites = $subsites ? $subsites->map('ID', 'Title')->toArray() : array();
+
+		$fields->addFieldsToTab('Root.Main', array(
+			$file = TreeDropdownField::create('FileID', _t('Linkable.FILE', 'File'), 'File', 'ID', 'Title'),
+			$subsiteSelectionField = new DropdownField(
+										"CopyContentFromIDSubsiteID",
+										_t('SubsitesVirtualPage.SubsiteField',"Subsite"),
+										$subsites,
+										($this->SiteTreeID) ? $this->SiteTree()->SubsiteID : Session::get('SubsiteID')
+									 ),
+			$SubsitesTreeDropdownField = SubsitesTreeDropdownField::create(
+											'SiteTreeID',
+											_t('Linkable.PAGE', 'Page'),
+											'SiteTree'
+										 ),
+			$anchor = TextField::create('Anchor', _t('Linkable.ANCHOR', 'Anchor')),
+			$newWindow = CheckboxField::create('OpenInNewWindow', _t('Linkable.OPENINNEWWINDOW', 'Open link in a new window')),
+		));
+
+		// Set the current subsite id
+		$SubsitesTreeDropdownField->setSubsiteID(($this->SiteTreeID) ? $this->SiteTree()->SubsiteID : Session::get('SubsiteID'));
+		if(Controller::has_curr() && Controller::curr()->getRequest()) {
+			$subsiteID = Controller::curr()->getRequest()->getVar('SiteTreeID_SubsiteID');
+			$SubsitesTreeDropdownField->setSubsiteID($subsiteID);
+		}
+
+		$file->displayIf("Type")->isEqualTo("File");
+		$SubsitesTreeDropdownField->displayIf("Type")->isEqualTo("SiteTree");
+		$subsiteSelectionField->displayIf("Type")->isEqualTo("SiteTree");
 		$newWindow->displayIf('Type')->isNotEmpty();
-		
+
 		$fields->dataFieldByName('URL')->displayIf("Type")->isEqualTo("URL");
 		$fields->dataFieldByName('Email')->setTitle(_t('Linkable.EMAILADDRESS', 'Email Address'))->displayIf("Type")->isEqualTo("Email");
 
 		if($this->SiteTreeID && !$this->SiteTree()->isPublished()){
-			$fields->dataFieldByName('SiteTreeID')->setRightTitle(_t('Linkable.DELETEDWARNING', 'Warning: The selected page appears to have been deleted or unpublished. This link may not appear or may be broken in the frontend'));			
-		}	
+			$fields->dataFieldByName('SiteTreeID')->setRightTitle(_t('Linkable.DELETEDWARNING', 'Warning: The selected page appears to have been deleted or unpublished. This link may not appear or may be broken in the frontend'));
+		}
 
-		$fields->addFieldToTab('Root.Main', $anchor = TextField::create('Anchor', _t('Linkable.ANCHOR', 'Anchor')), 'OpenInNewWindow');
 		$anchor->setRightTitle('Include # at the start of your anchor name');
-		$anchor->displayIf("Type")->isEqualTo("SiteTree");	
+		$anchor->displayIf("Type")->isEqualTo("SiteTree");
 
 		$this->extend('updateCMSFields', $fields);
 
 		return $fields;
 	}
 
+	public function getLinkArray() {
+		$linkArray = array();
+		$linkArray['url'] = $this->getLinkURL();
+		$linkArray['target'] = $this->OpenInNewWindow ? '_blank' : '';
+		$linkArray['title'] = $this->title;
+		$linkArray['linktype'] = $this->getLinkType();
+		$linkArray['forTemplate'] = $this->forTemplate();
 
-	/**
-	 * If the title is empty, set it to getLinkURL()
-	 * @return String
-	 **/
-	public function onAfterWrite(){
-		parent::onAfterWrite();
-		if(!$this->Title){
+		// Create a title if it's empty
+		if(!$this->title){
 			if($this->Type == 'URL' || $this->Type == 'Email'){
-				$this->Title = $this->{$this->Type};
+				$linkArray['title'] = $this->{$this->Type};
 			}elseif($this->Type == 'SiteTree'){
-				$this->Title = $this->SiteTree()->MenuTitle;
+				$linkArray['title'] = $this->SiteTree()->MenuTitle;
 			}else{
 				if($this->Type && $component = $this->getComponent($this->Type)){
-					$this->Title = $component->Title;
+					$linkArray['title'] = $component->Title;
 				}
 			}
-
-			if(!$this->Title){
-				$this->Title = 'Link-' . $this->ID;
-			}
-
-			$this->write();
 		}
 
-		
-
+		return $linkArray;
 	}
-	
-	
+
 	/**
 	 * Add CSS classes.
 	 * @param string $class CSS classes.
@@ -135,8 +151,8 @@ class Link extends DataObject{
 		$this->cssClass = $class;
 		return $this;
 	}
-	
-	
+
+
 	/**
 	 * Gets the html class attribute for this link.
 	 * @return String
@@ -154,9 +170,20 @@ class Link extends DataObject{
 	public function forTemplate(){
 		if($url = $this->getLinkURL()){
 			$title = $this->Title ? $this->Title : $url; // legacy
+			if(!$this->title){
+				if($this->Type == 'URL' || $this->Type == 'Email'){
+					$title = $this->{$this->Type};
+				}elseif($this->Type == 'SiteTree'){
+					$title = $this->SiteTree()->MenuTitle;
+				}else{
+					if($this->Type && $component = $this->getComponent($this->Type)){
+						$title = $component->Title;
+					}
+				}
+			}
 			$target = $this->getTargetAttr();
 			$class = $this->getClassAttr();
-			return "<a href='$url' $target $class>$title</a>";	
+			return "<a href='$url' $target $class>$title</a>";
 		}
 	}
 
@@ -166,7 +193,6 @@ class Link extends DataObject{
 	 * @return String
 	 **/
 	public function getLinkURL(){
-		if(!$this->ID) return;
 		if($this->Type == 'URL'){
 			return $this->URL;
 		}elseif($this->Type == 'Email'){
@@ -175,9 +201,11 @@ class Link extends DataObject{
 			if($this->Type && $component = $this->getComponent($this->Type)){
 				if(!$component->exists()){
 					return false;
-				} 
+				}
 
-				if($component->hasMethod('Link')){
+				if($component->hasMethod('AbsoluteLink')){
+					return $component->AbsoluteLink() . $this->Anchor;
+				}elseif($component->hasMethod('Link')){
 					return $component->Link() . $this->Anchor;
 				}else{
 					return "Please implement a Link() method on your dataobject \"$this->Type\"";
@@ -188,11 +216,11 @@ class Link extends DataObject{
 
 
 	/**
-     	 * Gets the html target attribute for the anchor tag
-     	 * @return String
-     	 **/
-    	public function getTargetAttr(){
-        	return $this->OpenInNewWindow ? "target='_blank'" : '';
+	 * Gets the html target attribute for the anchor tag
+	 * @return String
+	 **/
+	public function getTargetAttr(){
+		return $this->OpenInNewWindow ? "target='_blank'" : '';
 	}
 
 
@@ -210,7 +238,7 @@ class Link extends DataObject{
 	 * Validate
 	 * @return ValidationResult
 	 **/
-	protected function validate(){
+	public function validate(){
 		$valid = true;
 		$message = null;
 		if($this->Type == 'URL'){

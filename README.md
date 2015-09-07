@@ -2,11 +2,13 @@
 
 ## Requirements
 
-* SilverStripe 3.1
+* SilverStripe dev-master
 * [Display Logic](https://github.com/unclecheese/silverstripe-display-logic)
+* [Simple Subsites](https://github.com/mikenz/silverstripe-simplesubsites)
 
 ## Maintainers
 
+* mikec@mikenz.geek.nz
 * shea@silverstripe.com.au
 
 ## Description
@@ -19,16 +21,16 @@ This module contains a couple of handy FormFields / DataObjects for managing ext
 
 ## Link / LinkField
 
-A Link Object can be linked to a URL or, an internal Page or File in the SilverStripe instance. A DataObject, such as a Page can have many Link objects managed with a grid field, or one Link managed with LinkField. 
+A Link Object can be linked to a URL or, an internal Page or File in the SilverStripe instance. A DataObject, such as a Page can have many Link objects managed with a grid field, or one Link managed with LinkField.
 
 ### Example usage
 
 ```php
 class Page extends SiteTree{
-	
+
 	static $has_one = array(
-		'ExampleLink' => 'Link'
-	);		
+		'ExampleLink' => 'SerializedLink'
+	);
 
 	public function getCMSFields(){
 		$fields = parent::getCMSFields();
@@ -39,8 +41,8 @@ class Page extends SiteTree{
 ```
 
 In your template, you can render the links anchor tag with
-	
-	$ExampleLink 
+
+	$ExampleLink
 
 Or roll your own tag, making sure that the url is set first to avoid broken links
 
@@ -52,16 +54,16 @@ Or roll your own tag, making sure that the url is set first to avoid broken link
 
 ## EmbeddedObject/Field
 
-Use the EmbeddedObject/Field to easily add oEmbed content to a DataObject or Page. 
+Use the EmbeddedObject/Field to easily add oEmbed content to a DataObject or Page.
 
 ### Example usage
 
 ```php
 class Page extends SiteTree{
-	
+
 	static $has_one = array(
 		'Video' => 'EmbeddedObject'
-	);		
+	);
 
 	public function getCMSFields(){
 		$fields = parent::getCMSFields();

@@ -49,13 +49,13 @@ class LinkField extends TextField{
 		}
 
 		$link = null;
-		if($linkID = (int)$this->request->getVar('LinkID')){
-			$link = Link::get()->byID($linkID);
+		if($serialized = $this->request->getVar('LinkSerialized')){
+			$link = new Link(unserialize($serialized));
 		}
 		$link = $link ? $link : singleton('Link');
 
 		$fields = $link->getCMSFields();
-		
+
 		$title = $link ? _t('Linkable.EDITLINK', 'Edit Link') : _t('Linkable.ADDLINK', 'Add Link');
 		$fields->insertBefore(HeaderField::create('LinkHeader', $title), _t('Linkable.TITLE', 'Title'));
 		$actions = FieldList::create($action);
@@ -63,7 +63,6 @@ class LinkField extends TextField{
 
 		if($link){
 			$form->loadDataFrom($link);
-			$fields->push(HiddenField::create('LinkID', 'LinkID', $link->ID));
 		}
 
 		$this->owner->extend('updateLinkForm', $form);
@@ -80,13 +79,7 @@ class LinkField extends TextField{
 	public function doSaveLink($data, $form){
 		$link = $this->getLinkObject() ? $this->getLinkObject() : Link::create();
 		$form->saveInto($link);
-		try {
-			$link->write();	
-		} catch (ValidationException $e) {
-			$form->sessionMessage($e->getMessage(), 'bad');
-			return $form->forTemplate();
-		}
-		$this->setValue($link->ID);
+		$this->setValue(serialize($link->toMap()));
 		$this->setForm($form);
 		return $this->FieldHolder();
 	}
@@ -102,24 +95,19 @@ class LinkField extends TextField{
 		return $this->FieldHolder();
 	}
 
-	
+
 	/**
 	 * Returns the current link object
 	 *
 	 * @return Link
 	 **/
 	public function getLinkObject(){
-		$requestID = Controller::curr()->request->requestVar('LinkID');
-		
-		if($requestID == '0'){
-			return;
-		}
-
+		$serialized = Controller::curr()->request->requestVar('LinkSerialized');
 		if(!$this->linkObject){
-			$id = $this->Value() ? $this->Value() : $requestID;
-			if((int)$id){
-				$this->linkObject = Link::get()->byID($id);
-			}		
+			$serialized = $this->Value() ? $this->Value() : $serialized;
+			if($serialized){
+				$this->linkObject = new Link(unserialize($serialized));
+			}
 		}
 		return $this->linkObject;
 	}

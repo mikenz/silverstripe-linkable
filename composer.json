@@ -7,6 +7,10 @@
 	"homepage": "http://github.com/sheadawson/silverstripe-linkable",
 	"authors": [
 		{
+			"name": "Mike Cochrane",
+			"email": "mikec@mikenz.geek.nz"
+		},
+		{
 			"name": "Shea Dawson",
 			"email": "shea@silverstripe.com.au"
 		},
@@ -17,9 +21,10 @@
 	],
 	"require": {
 		"php": ">=5.3.2",
-		"silverstripe/framework": "3.*",
-		"silverstripe/cms": "3.*",
-		"unclecheese/display-logic": "1.2.*",
+		"silverstripe/framework": ">=3",
+		"silverstripe/cms": ">=3",
+		"mikenz/silverstripe-simplesubsites": "dev-master",
+		"unclecheese/display-logic": "dev-master",
 		"embed/embed": "~2.2.2"
 	},
 	"extra": {
