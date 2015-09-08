@@ -45,7 +45,6 @@ class SerializedLink extends StringField {
 	 * @return Link
 	 */
 	public function LinkObject() {
-		var_dump("LinkObject");
 		if (!$this->value) {
 			return new Link();
 		}
